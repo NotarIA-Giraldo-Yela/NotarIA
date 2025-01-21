@@ -11,8 +11,8 @@ def test_preprocess_image():
     """
     Prueba el preprocesamiento de una imagen.
     """
-    input_image_path = "NotarIAG/data/scanned_document.png"  # Ruta de la imagen de entrada
-    output_image_path = "NotarIAG/data/test_document_processed.png"  # Ruta de la imagen procesada
+    input_image_path = "data/scanned_document.png"  # Ruta de la imagen de entrada
+    output_image_path = "data/test_document_processed.png"  # Ruta de la imagen procesada
 
     try:
         # Preprocesar la imagen

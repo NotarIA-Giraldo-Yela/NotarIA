@@ -1,10 +1,3 @@
-import sys
-import os
-
-# Añadir la carpeta raíz del proyecto al sistema de búsqueda de módulos
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-
 from src.ocr.layoutlmv3_processor import process_document
 
 def test_process_document():
