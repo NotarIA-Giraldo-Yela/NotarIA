@@ -2,26 +2,13 @@ import win32com.client
 import cv2
 import os
 import uuid
-
-def list_scanners() -> list:
-    """
-    Lista los escáneres disponibles en el sistema.
-
-    Returns:
-        list: Lista de nombres de dispositivos escáner.
-    """
-    try:
-        device_manager = win32com.client.Dispatch("WIA.DeviceManager")
-        scanners = [
-            device.Properties["Name"].Value for device in device_manager.DeviceInfos
-        ]
-        return scanners
-    except Exception as e:
-        raise Exception(f"Error al listar escáneres: {str(e)}")
+import numpy as np
+from src.scanner.image_processor import crop_document
 
 def scan_document(output_path_front: str, output_path_back: str) -> None:
     """
-    Escanea las partes frontal y trasera de un documento y guarda las imágenes como PNG.
+    Escanea las partes frontal y trasera de un documento, recorta automáticamente el documento
+    y guarda las imágenes como PNG.
 
     Args:
         output_path_front (str): Ruta para guardar la parte frontal como PNG.
@@ -37,7 +24,7 @@ def scan_document(output_path_front: str, output_path_back: str) -> None:
             raise Exception("No se seleccionó ningún escáner.")
 
         # Escanear parte frontal
-        print("Escaneando la parte frontal...")
+        print("📄 Escaneando la parte frontal...")
         temp_bmp_front = f"temp_front_{uuid.uuid4().hex}.bmp"
         image_front = wia_dialog.ShowAcquireImage(
             DeviceType=WIA_DEVICE_TYPE_SCANNER,
@@ -47,7 +34,7 @@ def scan_document(output_path_front: str, output_path_back: str) -> None:
         image_front.SaveFile(temp_bmp_front)
 
         # Escanear parte trasera
-        print("Escaneando la parte trasera...")
+        print("📄 Escaneando la parte trasera...")
         temp_bmp_back = f"temp_back_{uuid.uuid4().hex}.bmp"
         image_back = wia_dialog.ShowAcquireImage(
             DeviceType=WIA_DEVICE_TYPE_SCANNER,
@@ -56,20 +43,26 @@ def scan_document(output_path_front: str, output_path_back: str) -> None:
         )
         image_back.SaveFile(temp_bmp_back)
 
-        # Convertir BMP a PNG
+        # Convertir BMP a PNG y recortar el documento
         bmp_image_front = cv2.imread(temp_bmp_front)
         bmp_image_back = cv2.imread(temp_bmp_back)
 
         if bmp_image_front is None or bmp_image_back is None:
             raise Exception("No se pudieron cargar las imágenes temporales.")
 
-        cv2.imwrite(output_path_front, bmp_image_front)
-        cv2.imwrite(output_path_back, bmp_image_back)
-        print(f"Parte frontal guardada en: {output_path_front}")
-        print(f"Parte trasera guardada en: {output_path_back}")
+        # Recortar automáticamente el documento
+        cropped_front = crop_document(bmp_image_front)
+        cropped_back = crop_document(bmp_image_back)
+
+        # Guardar imágenes en PNG
+        cv2.imwrite(output_path_front, cropped_front)
+        cv2.imwrite(output_path_back, cropped_back)
+
+        print(f"✅ Parte frontal guardada en: {output_path_front}")
+        print(f"✅ Parte trasera guardada en: {output_path_back} (Recortadas correctamente)")
 
         # Eliminar archivos temporales
         os.remove(temp_bmp_front)
         os.remove(temp_bmp_back)
     except Exception as e:
-        raise Exception(f"Error al escanear el documento: {str(e)}")
+        raise Exception(f"❌ Error al escanear el documento: {str(e)}")
