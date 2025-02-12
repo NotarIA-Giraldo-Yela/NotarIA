@@ -33,7 +33,7 @@ def preprocess_image(image: np.ndarray) -> np.ndarray:
 
         # Aplicar binarización adaptativa para mejorar la nitidez del texto
         binary = cv2.adaptiveThreshold(denoised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY, 11, 3)
+                                       cv2.THRESH_BINARY, 55, 35)
 
         # Aplicar una ligera corrección de contraste
         alpha, beta = 3, 10  # Aumenta el contraste y brillo
