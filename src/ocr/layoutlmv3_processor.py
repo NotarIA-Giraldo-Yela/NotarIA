@@ -151,6 +151,7 @@ def parse_front_text(text: str) -> dict:
     "SEXO"
 ]
 
+    ignorar_siguiente = False
 
     for line in lines:
         # 🔍 Detectar número de documento
@@ -162,11 +163,16 @@ def parse_front_text(text: str) -> dict:
             numero_doc = match.group().replace(",", ".")
             numero_doc = match.group().lstrip("0")
 
+        elif ignorar_siguiente:
+            ignorar_siguiente = False
+            continue
+        
         # 🔍 Detectar apellidos
-        elif any(word in line.upper() for word in palabras_invalidas):
+        elif apellidos == "No detectado" or apellidos == "" and any(word in line.upper() for word in palabras_invalidas):
             continue  # Si la línea contiene palabras prohibidas, la ignoramos
         elif apellidos == "No detectado" or apellidos == "":
             apellidos = line.upper()
+            ignorar_siguiente = True
 
         # 🔍 Detectar nombres
         elif nombres == "No detectado":
@@ -209,7 +215,7 @@ def extract_zones(image: np.ndarray, zones: dict) -> dict:
 
 def validate_fields(data: dict) -> dict:
     """ Verifica que los campos tengan valores válidos y corrige errores. """
-    valid_sex_values = ["M", "F", "T", "NB"]
+    valid_sex_values = ["M", "m", "F", "f", "T", "t", "NB"]
 
     # Validar el campo "Sexo"
     if "Sexo" in data:

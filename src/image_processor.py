@@ -31,7 +31,7 @@ def preprocess_image(image: np.ndarray) -> np.ndarray:
         else:
             gray = image
 
-        _, binary = cv2.threshold(gray, 110, 255, cv2.THRESH_BINARY_INV)
+        _, binary = cv2.threshold(gray, 90, 255, cv2.THRESH_BINARY_INV)
 
         # 2. Encontrar contornos de los caracteres
         contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
