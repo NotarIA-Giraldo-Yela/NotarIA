@@ -69,9 +69,6 @@ def extract_front_zone(image: np.ndarray) -> dict:
     x, y, w, h = ZONE_FRONT
     zone = image[y:y+h, x:x+w]
 
-    # Mostrar la imagen recortada de la parte frontal
-    show_image("Zona Frontal - Número, Apellidos, Nombres", zone)
-
     text = pytesseract.image_to_string(zone, lang="spa", config="--psm 6").strip()
     print(f"🔍 Texto detectado en la parte frontal:\n{text}\n")
     
@@ -124,19 +121,7 @@ def parse_front_text(text: str) -> dict:
     "NOMBR3S",  # OCR puede confundir E con 3
     "NOMBRES.",
     "NOMRES",   # OCR puede omitir letras
-
-    # Variaciones de "APELLIDOS"
-    "APELLIDOS",
-    "APELL1DOS",  # OCR puede confundir I con 1
-    "APELL1D0S",  # OCR puede confundir O con 0
-    "APELLID0S",
-    "APELL1DOS",
-    "AFELLIDOS",
-    "ARELLIDOS",
-    "APELIDOS",
-    "APELLIDOS.",
-    "AP3LLIDOS",  # OCR puede confundir E con 3
-    "APELL1DOS.",
+   
 
     # Otras palabras clave que pueden aparecer erróneamente
     "FECHA",
@@ -151,7 +136,6 @@ def parse_front_text(text: str) -> dict:
     "SEXO"
 ]
 
-    ignorar_siguiente = False
 
     for line in lines:
         # 🔍 Detectar número de documento
@@ -162,17 +146,14 @@ def parse_front_text(text: str) -> dict:
         if match and numero_doc == "No detectado":
             numero_doc = match.group().replace(",", ".")
             numero_doc = match.group().lstrip("0")
-
-        elif ignorar_siguiente:
-            ignorar_siguiente = False
-            continue
+ 
         
         # 🔍 Detectar apellidos
-        elif apellidos == "No detectado" or apellidos == "" and any(word in line.upper() for word in palabras_invalidas):
+        elif any(word in line.upper() for word in palabras_invalidas):
             continue  # Si la línea contiene palabras prohibidas, la ignoramos
         elif apellidos == "No detectado" or apellidos == "":
             apellidos = line.upper()
-            ignorar_siguiente = True
+            continue
 
         # 🔍 Detectar nombres
         elif nombres == "No detectado":
@@ -196,8 +177,6 @@ def extract_zones(image: np.ndarray, zones: dict) -> dict:
     for key, (x, y, w, h) in zones.items():
         zone = image[y:y+h, x:x+w]
 
-        # Mostrar la imagen recortada de cada zona antes de procesarla
-        show_image(f"Zona: {key}", zone)
 
         text = pytesseract.image_to_string(zone, lang="spa", config="--psm 6").strip()
         text = clean_text(text)

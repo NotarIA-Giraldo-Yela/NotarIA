@@ -1,170 +1,248 @@
 import tkinter as tk
-from tkinter import filedialog, Label, Button
+from tkinter import Label, Button, filedialog
 import cv2
 from PIL import Image, ImageTk
 import os
-import uuid
 import sys
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from scanner.scanner import scan_document
 from scanner.scanner_doc import scan_doc
 from image_processor import preprocess_image
 from ocr.layoutlmv3_processor import process_document
+from templates_handler.template_filler import update_docx_template
+from templates_handler.form_filler import SaleDataApp
 
 
 class NotarIAApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("NotarIA - Lector de Cédulas")
+        self.root.title("NotarIA - Lector de Documentos")
         self.root.geometry("900x750")
 
+        # Variables para almacenar datos
+        self.datos_comprador = None
+        self.datos_vendedor = None
+        self.datos_folio = None
+        self.datos_manual = {}
+
         # Botón para escanear documento del comprador
-        self.btn_escanear = Button(root, text="📑 Escanear Documento Comprador", command=self.escanear_documento_comprador, width=25)
-        self.btn_escanear.pack(pady=5)
+        self.btn_escanear_comprador = Button(root, text="📑 Escanear Documento Comprador", command=self.buyer_info, width=25)
+        self.btn_escanear_comprador.pack(pady=5)
 
         # Botón para escanear documento del vendedor
-        self.btn_escanear = Button(root, text="📑 Escanear Documento Vendedor", command=self.escanear_documento_vendedor, width=25)
-        self.btn_escanear.pack(pady=5)
-        
-        # Botón para escanear Folio
-        self.btn_cargar = Button(root, text="📑 Escanear Folio ", command=self.escanear_folio, width=25)
-        self.btn_cargar.pack(pady=5)
+        self.btn_escanear_vendedor = Button(root, text="📑 Escanear Documento Vendedor", command=self.seller_info, width=25)
+        self.btn_escanear_vendedor.pack(pady=5)
 
-        # Botón para escanear foliop
-        self.btn_cargar = Button(root, text="⚙️ Generar Escritura ", command=self.escanear_folio, width=25)
-        self.btn_cargar.pack(pady=5)
+        # Botón para abrir el formulario de ingreso manual
+        self.btn_ingreso_manual = Button(root, text="✍️ Ingreso Manual de Datos", command=self.manual_form, width=25)
+        self.btn_ingreso_manual.pack(pady=5)
+
+        # Botón para escanear Folio
+        self.btn_cargar_folio = Button(root, text="📑 Escanear Folio ", command=self.folio_info, width=25)
+        self.btn_cargar_folio.pack(pady=5)
+
+        # Botón para generar la escritura
+        self.btn_generar_escritura = Button(root, text="⚙️ Generar Escritura ", command=self.create_writing, width=25)
+        self.btn_generar_escritura.pack(pady=5)
 
         # Etiqueta para mostrar resultados
-        self.resultado_label = Label(root, text="", fg="blue", font=("Arial", 12))
+        self.resultado_label = Label(root, text="🔍 Resultados aparecerán aquí", fg="blue", font=("Arial", 12), justify="left")
         self.resultado_label.pack(pady=10)
 
-        self.imagen_front = None
-        self.imagen_back = None
-        self.imagen_actual = "front"  # Controla si se muestra la frontal o la trasera
-
-    def escanear_documento_comprador(self):
-        """ Escanea ambas caras del documento automáticamente a 600 ppp. """
+    def buyer_info(self):
+        """ Escanea ambas caras del documento del comprador, guarda y muestra la información. """
         try:
-            output_front = "scanned_front.png"
-            output_back = "scanned_back.png"
+            output_front = "scanned_front_comprador.png"
+            output_back = "scanned_back_comprador.png"
 
-            # Llamar al escaneo
             scan_document(output_front, output_back)
 
-            self.imagen_front = output_front
-            self.imagen_back = output_back
-            self.imagen_actual = "front"
-            
-            processed_front = preprocess_image(cv2.imread(self.imagen_front))
-            processed_back = preprocess_image(cv2.imread(self.imagen_back))
+            processed_front = preprocess_image(cv2.imread(output_front))
+            processed_back = preprocess_image(cv2.imread(output_back))
 
-            self.imagen_front = "processed_front.png"
-            self.imagen_back = "processed_back.png"
+            cv2.imwrite(output_front, processed_front)
+            cv2.imwrite(output_back, processed_back)
 
-            cv2.imwrite(self.imagen_front, processed_front)
-            cv2.imwrite(self.imagen_back, processed_back)
+            self.datos_comprador = process_document(output_front, output_back)
 
-            datos_vendedor = process_document(self.imagen_front, self.imagen_back)
-            datos_front_vendedor = datos_vendedor["Parte Frontal"]
-            datos_back_vendedor = datos_vendedor["Parte Trasera"]
-
-            resultado_texto = "📝 **Parte Frontal:**\n"
-            resultado_texto += f"  Número de Documento: {datos_front_vendedor.get('Número de Documento', 'No detectado')}\n"
-            resultado_texto += f"  Apellidos: {datos_front_vendedor.get('Apellidos', 'No detectado')}\n"
-            resultado_texto += f"  Nombres: {datos_front_vendedor.get('Nombres', 'No detectado')}\n\n"
-
-            resultado_texto += "📝 **Parte Trasera:**\n"
-            resultado_texto += f"  Fecha de nacimiento: {datos_back_vendedor.get('Fecha de nacimiento', 'No detectado')}\n"
-            resultado_texto += f"  Sexo: {datos_back_vendedor.get('Sexo', 'No detectado')}\n"
-            resultado_texto += f"  Lugar de expedición: {datos_back_vendedor.get('Lugar de expedicion', 'No detectado')}\n"
-
-            self.resultado_label.config(text=resultado_texto, fg="blue")
+            # Mostrar en pantalla
+            self.mostrar_resultados("📌 **Datos del Comprador:**", self.datos_comprador)
 
         except Exception as e:
-            self.resultado_label.config(text=f"⚠️ Error al escanear: {str(e)}", fg="red")
+            self.resultado_label.config(text=f"⚠️ Error al escanear el comprador: {str(e)}", fg="red")
 
-
-
-    def escanear_documento_vendedor(self):
-        """ Escanea ambas caras del documento. """
+    def seller_info(self):
+        """ Escanea ambas caras del documento del vendedor, guarda y muestra la información. """
         try:
-            output_front = "scanned_front.png"
-            output_back = "scanned_back.png"
+            output_front = "scanned_front_vendedor.png"
+            output_back = "scanned_back_vendedor.png"
 
-            # Llamar al escaneo automático
             scan_document(output_front, output_back)
 
-            self.imagen_front = output_front
-            self.imagen_back = output_back
-            self.imagen_actual = "front"
+            processed_front = preprocess_image(cv2.imread(output_front))
+            processed_back = preprocess_image(cv2.imread(output_back))
 
-            self.mostrar_imagen(self.imagen_front)
+            cv2.imwrite(output_front, processed_front)
+            cv2.imwrite(output_back, processed_back)
 
-            
-            processed_front = preprocess_image(cv2.imread(self.imagen_front))
-            processed_back = preprocess_image(cv2.imread(self.imagen_back))
+            self.datos_vendedor = process_document(output_front, output_back)
 
-            self.imagen_front = "processed_front.png"
-            self.imagen_back = "processed_back.png"
-
-            cv2.imwrite(self.imagen_front, processed_front)
-            cv2.imwrite(self.imagen_back, processed_back)
-
-            datos_comprador = process_document(self.imagen_front, self.imagen_back)
-            datos_front_comprador = datos_comprador["Parte Frontal"]
-            datos_back_comprador = datos_comprador["Parte Trasera"]
-
-            resultado_texto = "📝 **Parte Frontal:**\n"
-            resultado_texto += f"  Número de Documento: {datos_front_comprador.get('Número de Documento', 'No detectado')}\n"
-            resultado_texto += f"  Apellidos: {datos_front_comprador.get('Apellidos', 'No detectado')}\n"
-            resultado_texto += f"  Nombres: {datos_front_comprador.get('Nombres', 'No detectado')}\n\n"
-
-            resultado_texto += "📝 **Parte Trasera:**\n"
-            resultado_texto += f"  Fecha de nacimiento: {datos_back_comprador.get('Fecha de nacimiento', 'No detectado')}\n"
-            resultado_texto += f"  Sexo: {datos_back_comprador.get('Sexo', 'No detectado')}\n"
-            resultado_texto += f"  Lugar de expedición: {datos_back_comprador.get('Lugar de expedicion', 'No detectado')}\n"
-
-            self.resultado_label.config(text=resultado_texto, fg="blue")
+            # Mostrar en pantalla
+            self.mostrar_resultados("📌 **Datos del Vendedor:**", self.datos_vendedor)
 
         except Exception as e:
-            self.resultado_label.config(text=f"⚠️ Error al escanear: {str(e)}", fg="red")
+            self.resultado_label.config(text=f"⚠️ Error al escanear el vendedor: {str(e)}", fg="red")
 
+    def manual_form(self):
+        """ Abre el formulario de ingreso manual de datos y recupera la información. """
+        manual_root = tk.Toplevel(self.root)
+        app = SaleDataApp(manual_root)
+        manual_root.wait_window()  # Espera a que el usuario cierre la ventana
+    
+        # Recuperar los datos ingresados manualmente
+        self.datos_manual = app.data
+        print("Datos manuales ingresados:", self.datos_manual)  # Depuración
 
-    def escanear_folio(self):
-        """ Escanea folio de matricula. """
+    def folio_info(self):
+        """ Escanea folio de matrícula y guarda la información. """
         try:
             output_doc = "Folio_Matricula"
 
-            # Llamar al escaneo automático
-            datos_folio = scan_doc(output_doc)
-            
-            matricula = datos_folio.get('matricula', 'No detectado')
-            cedula_catastral = datos_folio.get('cedula_catastral', 'No detectado')
-            ubicacion_predio = datos_folio.get('ubicacion_predio', 'No detectado')
-            direccion_inmueble = datos_folio.get('direccion_inmueble', 'No detectado')
+            self.datos_folio = scan_doc(output_doc)
 
-            self.imagen_doc = output_doc
-            self.imagen_actual = "doc_fol"
-            
-            
+            # Mostrar resultados en pantalla
+            folio_texto = f"""
+            📌 **Datos del Folio:**
+            - Matrícula: {self.datos_folio.get('matricula', 'No detectado')}
+            - Cédula Catastral: {self.datos_folio.get('cedula_catastral', 'No detectado')}
+            - Ubicación: {self.datos_folio.get('ubicacion_predio', 'No detectado')}
+            - Dirección: {self.datos_folio.get('direccion_inmueble', 'No detectado')}
+            """
+            self.resultado_label.config(text=folio_texto, fg="blue")
 
         except Exception as e:
-            self.resultado_label.config(text=f"⚠️ Error al escanear: {str(e)}", fg="red")
+            self.resultado_label.config(text=f"⚠️ Error al escanear folio: {str(e)}", fg="red")
+
+    def create_writing(self):
+        """ Genera la escritura con los datos escaneados. Indica si falta algún documento. """
+        faltantes = []
+
+        if not self.datos_comprador:
+            faltantes.append("Documento del Comprador")
+        if not self.datos_vendedor:
+            faltantes.append("Documento del Vendedor")
+        if not self.datos_folio:
+            faltantes.append("Folio de Matrícula")
+
+        if not self.datos_comprador and "comprador" not in self.datos_manual:
+            faltantes.append("Datos del comprador")
+
+        if not self.datos_vendedor and "vendedor" not in self.datos_manual:
+            faltantes.append("Datos del vendedor")
+
+        if faltantes:
+            mensaje_error = f"⚠️ Error: Faltan los siguientes documentos:\n" + "\n".join(f"- {doc}" for doc in faltantes)
+            self.resultado_label.config(text=mensaje_error, fg="red")
+            return
+
+        escritura = f"""
+        📝 **Escritura de Compraventa**
+    
+        👤 **Comprador:**
+        - Nombre: {self.datos_comprador['Parte Frontal'].get('Nombres', 'No detectado')} {self.datos_comprador['Parte Frontal'].get('Apellidos', 'No detectado')}
+        - Documento: {self.datos_comprador['Parte Frontal'].get('Número de Documento', 'No detectado')}
+        - Lugar de Expedición: {self.datos_comprador['Parte Trasera'].get('Lugar de expedicion', 'No detectado')}
+        - Afectación: {self.datos_manual['comprador'].get('afectacion', 'No ingresado')}
+        - Estado Civil: {self.datos_manual['comprador'].get('estadoCivil', 'No ingresado')}
+        - Sociedad:{self.datos_manual['comprador'].get('sociedad', 'No ingresado')}
+        - Dirección:{self.datos_manual['comprador'].get('direccion', 'No ingresado')}
+        - Correo Electronico:{self.datos_manual['comprador'].get('correo', 'No ingresado')}
+        - Teléfono Celular: {self.datos_manual['comprador'].get('telefonoCel', 'No ingresado')}
+        - Telefono Fijo: {self.datos_manual['comprador'].get('telefonoFijo', 'No ingresado')}
+    
+        👤 **Vendedor:**
+        - Nombre: {self.datos_vendedor['Parte Frontal'].get('Nombres', 'No detectado')} {self.datos_vendedor['Parte Frontal'].get('Apellidos', 'No detectado')}
+        - Documento: {self.datos_vendedor['Parte Frontal'].get('Número de Documento', 'No detectado')}
+        - Lugar de Expedición: {self.datos_vendedor['Parte Trasera'].get('Lugar de expedicion', 'No detectado')}
+        - Afectación: {self.datos_manual['vendedor'].get('afectacion', 'No ingresado')}
+        - Estado Civil: {self.datos_manual['vendedor'].get('estadoCivil', 'No ingresado')}
+        - Sociedad:{self.datos_manual['vendedor'].get('sociedad', 'No ingresado')}
+        - Dirección:{self.datos_manual['vendedor'].get('direccion', 'No ingresado')}
+        - Correo Electronico:{self.datos_manual['vendedor'].get('correo', 'No ingresado')}
+        - Teléfono Celular: {self.datos_manual['vendedor'].get('telefonoCel', 'No ingresado')}
+        - Telefono Fijo: {self.datos_manual['vendedor'].get('telefonoFijo', 'No ingresado')}
+    
+        🏠 **Datos del Inmueble:**
+        - Valor de la Venta: {self.datos_manual.get('valorVenta', 'No ingresado')}
+        - Matrícula: {self.datos_folio.get('matricula', 'No detectado')}
+        - Cédula Catastral: {self.datos_folio.get('cedula_catastral', 'No detectado')}
+        - Ubicación: {self.datos_folio.get('ubicacion_predio', 'No detectado')}
+        - Dirección: {self.datos_folio.get('direccion_inmueble', 'No detectado')}
+        """
+
+        # Guardar la escritura en un archivo
+        with open("escritura.txt", "w", encoding="utf-8") as file:
+            file.write(escritura)
+
+        # Ahora, solicitar la plantilla DOCX para insertar los datos extraídos
+        docx_path = filedialog.askopenfilename(
+            title="Selecciona la plantilla DOCX",
+            filetypes=[("Documentos DOCX", "*.docx")]
+        )
+        
+        if docx_path:
+            extracted_data = {
+                "nombre_comprador": self.datos_comprador['Parte Frontal'].get('Nombres', 'No detectado'),
+                "apellidos_comprador": self.datos_comprador['Parte Frontal'].get('Apellidos', 'No detectado'),
+                "num_doc_comprador": self.datos_comprador['Parte Frontal'].get('Número de Documento', 'No detectado'),
+                "lugar_expe_comprador": self.datos_comprador['Parte Trasera'].get('Lugar de expedicion', 'No detectado'),
+                "afectacion_comprador": {self.datos_manual['comprador'].get('afectacion', 'No ingresado')},
+                "estadoCivil_comprador": {self.datos_manual['comprador'].get('estadoCivil', 'No ingresado')},
+                "sociedad_comprador":{self.datos_manual['comprador'].get('sociedad', 'No ingresado')},
+                "direccion_comprador":{self.datos_manual['comprador'].get('direccion', 'No ingresado')},
+                "correo_comprador":{self.datos_manual['comprador'].get('correo', 'No ingresado')},
+                "telefonoCel_comprador": {self.datos_manual['comprador'].get('telefonoCel', 'No ingresado')},
+                "telefonoFijo_comprador": {self.datos_manual['comprador'].get('telefonoFijo', 'No ingresado')},
+
+                "nombre_vendedor": self.datos_vendedor['Parte Frontal'].get('Nombres', 'No detectado'),
+                "apellidos_vendedor": self.datos_vendedor['Parte Frontal'].get('Apellidos', 'No detectado'),
+                "num_doc_vendedor": self.datos_vendedor['Parte Frontal'].get('Número de Documento', 'No detectado'),
+                "lugar_expe_vendedor": self.datos_vendedor['Parte Trasera'].get('Lugar de expedicion', 'No detectado'),
+                "afectacion_vendedor": {self.datos_manual['vendedor'].get('afectacion', 'No ingresado')},
+                "estadoCivil_vendedor": {self.datos_manual['vendedor'].get('estadoCivil', 'No ingresado')},
+                "sociedad_vendedor":{self.datos_manual['vendedor'].get('sociedad', 'No ingresado')},
+                "direccion_vendedor":{self.datos_manual['vendedor'].get('direccion', 'No ingresado')},
+                "correo_vendedor":{self.datos_manual['vendedor'].get('correo', 'No ingresado')},
+                "telefonoCel_vendedor": {self.datos_manual['vendedor'].get('telefonoCel', 'No ingresado')},
+                "telefonoFijo_vendedor": {self.datos_manual['vendedor'].get('telefonoFijo', 'No ingresado')},
+
+                "valorVenta": {self.datos_manual.get('valorVenta', 'No ingresado')},
+                "matricula": self.datos_folio.get('matricula', 'No detectado'),
+                "cedula_catastral": self.datos_folio.get('cedula_catastral', 'No detectado'),
+                "ubicacion_predio": self.datos_folio.get('ubicacion_predio', 'No detectado'),
+                "direccion_inmueble": self.datos_folio.get('direccion_inmueble', 'No detectado')
+            }
+            output_docx = "Documento_Actualizado.docx"
+            update_docx_template(docx_path, output_docx, extracted_data)
+        
+        self.resultado_label.config(text="✅ Escritura generada correctamente. Guardada como 'escritura.txt'", fg="green")
 
 
-    #def generar_escritura(self):
+    def mostrar_resultados(self, titulo, datos):
+        """ Formatea y muestra los datos en la interfaz. """
+        resultado_texto = f"{titulo}\n"
+        resultado_texto += f"  - Número de Documento: {datos['Parte Frontal'].get('Número de Documento', 'No detectado')}\n"
+        resultado_texto += f"  - Apellidos: {datos['Parte Frontal'].get('Apellidos', 'No detectado')}\n"
+        resultado_texto += f"  - Nombres: {datos['Parte Frontal'].get('Nombres', 'No detectado')}\n\n"
+        resultado_texto += f"📝 **Parte Trasera:**\n"
+        resultado_texto += f"  - Fecha de nacimiento: {datos['Parte Trasera'].get('Fecha de nacimiento', 'No detectado')}\n"
+        resultado_texto += f"  - Lugar de expedición: {datos['Parte Trasera'].get('Lugar de expedicion', 'No detectado')}\n"
 
+        self.resultado_label.config(text=resultado_texto, fg="blue")
 
+        
 
-    def mostrar_imagen(self, path):
-        """ Muestra la imagen en la interfaz gráfica. """
-        img = Image.open(path)
-
-        img = img.resize((400, 250))
-        img_tk = ImageTk.PhotoImage(img)
-
-        self.label_imagen.config(image=img_tk)
-        self.label_imagen.image = img_tk
 
 # Iniciar la aplicación
 if __name__ == "__main__":
