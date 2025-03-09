@@ -193,7 +193,7 @@ class NotarIAApp:
         
         if docx_path:
             extracted_data = {
-                "nombre_comprador": self.datos_comprador['Parte Frontal'].get('Nombres', 'No detectado'),
+                "nombre_comprador": self.datos_comprador['Parte Frontal'].get('Apellidos', 'No detectado')  + " " + self.datos_comprador['Parte Frontal'].get('Nombres', 'No detectado'),
                 "apellidos_comprador": self.datos_comprador['Parte Frontal'].get('Apellidos', 'No detectado'),
                 "num_doc_comprador": self.datos_comprador['Parte Frontal'].get('Número de Documento', 'No detectado'),
                 "lugar_expe_comprador": self.datos_comprador['Parte Trasera'].get('Lugar de expedicion', 'No detectado'),
@@ -205,7 +205,7 @@ class NotarIAApp:
                 "telefonoCel_comprador": {self.datos_manual['comprador'].get('telefonoCel', 'No ingresado')},
                 "telefonoFijo_comprador": {self.datos_manual['comprador'].get('telefonoFijo', 'No ingresado')},
 
-                "nombre_vendedor": self.datos_vendedor['Parte Frontal'].get('Nombres', 'No detectado'),
+                "nombre_vendedor": self.datos_vendedor['Parte Frontal'].get('Nombres', 'No detectado') + " " + self.datos_vendedor['Parte Frontal'].get('Apellidos', 'No detectado'),
                 "apellidos_vendedor": self.datos_vendedor['Parte Frontal'].get('Apellidos', 'No detectado'),
                 "num_doc_vendedor": self.datos_vendedor['Parte Frontal'].get('Número de Documento', 'No detectado'),
                 "lugar_expe_vendedor": self.datos_vendedor['Parte Trasera'].get('Lugar de expedicion', 'No detectado'),

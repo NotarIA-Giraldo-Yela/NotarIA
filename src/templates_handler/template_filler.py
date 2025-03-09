@@ -1,42 +1,64 @@
 import re
-import tkinter as tk
-from tkinter import filedialog
-import PyPDF2
-from pdf2image import convert_from_path
-import pytesseract
 from docx import Document
-
-# Si Tesseract no está en el PATH, descomenta y ajusta la siguiente línea:
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 def update_docx_template(docx_path, output_path, extracted_data):
     """
-    Abre la plantilla DOCX, busca las líneas que contienen los títulos
-    y reemplaza su contenido con los datos extraídos:
-      - Matrícula Inmobiliaria
-      - Cédula Catastral (se combinan los dos campos si existen)
-      - Ubicación del Predio
-      - Dirección del Inmueble
-    Guarda el documento actualizado en 'output_path'.
+    Abre la plantilla DOCX, busca las llaves {} en el texto y las reemplaza con los valores correspondientes de extracted_data.
     """
     doc = Document(docx_path)
-    # Procesar la Cédula Catastral como un único string
-    cedula_catastral_str = ""
-    cc = extracted_data.get("cedula_catastral", {})
-    if cc.get("CODIGO_CATASTRAL") and cc.get("COD_CATASTRAL_ANT"):
-        cedula_catastral_str = f"{cc.get('CODIGO_CATASTRAL')} / {cc.get('COD_CATASTRAL_ANT')}"
-    elif cc.get("CODIGO_CATASTRAL"):
-        cedula_catastral_str = cc.get("CODIGO_CATASTRAL")
-    elif cc.get("COD_CATASTRAL_ANT"):
-        cedula_catastral_str = cc.get("COD_CATASTRAL_ANT")
     
+    # Mapeo de las llaves en la plantilla a los datos extraídos
+    key_mapping = {
+        "matin": "matricula",
+        "cedcas": "cedula_catastral",
+        "ubipre": "ubicacion_predio",
+        "dirinm": "direccion_inmueble",
+        "descinm": "descripcion_inmueble",
+        "val_letras": "valorVenta_letras",
+        "valinm": "valorVenta",
+        "nomvende": "nombre_vendedor",
+        "numced_vend": "num_doc_vendedor",
+        "exped_vend": "lugar_expe_vendedor",
+        "estcivil_vend": "estadoCivil_vendedor",
+        "conosin_vend": "sociedad_vendedor",
+        "nomcompra": "nombre_comprador",
+        "numced_compra": "num_doc_comprador",
+        "exped_compra": "lugar_expe_comprador",
+        "estcivil_compra": "estadoCivil_comprador",
+        "conosin_compra": "sociedad_comprador",
+        "lindpredio": "linderos_predio"
+    }
+    
+    def format_value(value):
+        """Convierte cualquier tipo de dato en una cadena correctamente formateada."""
+        if isinstance(value, set):
+            return " ".join(map(str, value)) if value else ""
+        if isinstance(value, list):
+            return ", ".join(map(str, value))
+        if isinstance(value, (int, float)):
+            return str(value)
+        if value is None:
+            return ""
+        return str(value)
+    
+    # Recorre cada párrafo del documento y reemplaza los valores
     for paragraph in doc.paragraphs:
-        if "Matrícula Inmobiliaria:" in paragraph.text:
-            paragraph.text = f"Matrícula Inmobiliaria: {extracted_data.get('matricula', '')}"
-        if "Cédula Catastral:" in paragraph.text:
-            paragraph.text = f"Cédula Catastral: {cedula_catastral_str}"
-        if "Ubicación del Predio:" in paragraph.text:
-            paragraph.text = f"Ubicación del Predio: {extracted_data.get('ubicacion_predio', '')}"
-        if "Dirección del Inmueble:" in paragraph.text:
-            paragraph.text = f"Dirección del Inmueble: {extracted_data.get('direccion_inmueble', '')}"
+        for key, mapped_key in key_mapping.items():
+            placeholder = f"{{{key}}}"  # Crea el marcador a buscar en la plantilla
+            if placeholder in paragraph.text:
+                value = format_value(extracted_data.get(mapped_key, "No especificado"))
+                paragraph.text = paragraph.text.replace(placeholder, value)
+    
+    # Recorre las tablas en el documento y reemplaza los valores en celdas
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for key, mapped_key in key_mapping.items():
+                    placeholder = f"{{{key}}}"
+                    if placeholder in cell.text:
+                        value = format_value(extracted_data.get(mapped_key, "No especificado"))
+                        cell.text = cell.text.replace(placeholder, value)
+    
+    # Guarda el documento con los datos reemplazados
     doc.save(output_path)
+    print(f"Documento guardado en {output_path}")
