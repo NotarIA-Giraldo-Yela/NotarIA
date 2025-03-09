@@ -1,5 +1,6 @@
 import re
 import tkinter as tk
+from tkinter import ttk
 import PyPDF2
 from pdf2image import convert_from_path
 import pytesseract
@@ -7,6 +8,19 @@ from docx import Document
 
 # Si Tesseract no está en el PATH, descomenta y ajusta la siguiente línea:
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+def show_progress():
+    """ Crea una ventana emergente con una barra de carga. """
+    root = tk.Toplevel()
+    root.title("Procesando documento")
+    root.geometry("400x150")  # Tamaño de la ventana
+    root.resizable(False, False)
+
+    ttk.Label(root, text="Procesando documento, por favor espere...", font=("Arial", 12)).pack(pady=10)
+    progress = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
+    progress.pack(pady=10)
+    
+    return root, progress
 
 def extract_first_matricula_from_pdf(pdf_path):
     """Extrae el primer número de matrícula encontrado en el PDF."""
@@ -209,46 +223,69 @@ def extract_direccion_inmueble_from_pdf(pdf_path):
                 break
     return direccion_inmueble
 
-def PDf_read (pdf_path):
+def PDf_read(pdf_path):
+    """ Lee un archivo PDF y extrae los datos relevantes con una barra de progreso. """
     
-    if pdf_path:
+    if not pdf_path:
+        print("No se seleccionó ningún archivo PDF.")
+        return None
+
+    # Crear la ventana de progreso
+    progress_window, progress = show_progress()
+    progress_window.update()
+
+    steps = 4  # Número de pasos en el proceso
+    progress_step = 100 / steps  # Incremento por cada paso
+
+    try:
         matricula = extract_first_matricula_from_pdf(pdf_path)
+        progress["value"] += progress_step
+        progress_window.update()
+
         cedula_catastral = extract_cedula_catastral_from_pdf(pdf_path)
+        progress["value"] += progress_step
+        progress_window.update()
+
         ubicacion_predio = extract_ubicacion_predio_from_pdf(pdf_path)
+        progress["value"] += progress_step
+        progress_window.update()
+
         direccion_inmueble = extract_direccion_inmueble_from_pdf(pdf_path)
-        
+        progress["value"] += progress_step
+        progress_window.update()
+
+        # Cerrar la ventana de progreso después de completar todas las tareas
+        progress_window.destroy()
+
+        # Mostrar los resultados en la terminal
         if matricula:
-            print("Número de matrícula encontrado:")
-            print(matricula)
-            print("\nVariable alfanumérica con el resultado (Matrícula):", matricula)
+            print("\nNúmero de matrícula encontrado:", matricula)
         else:
             print("No se encontró ningún número de matrícula en el PDF.")
         
         if cedula_catastral["CODIGO_CATASTRAL"] or cedula_catastral["COD_CATASTRAL_ANT"]:
-            print("\nCédula Catastral encontrada:")
-            print(cedula_catastral)
+            print("\nCédula Catastral encontrada:", cedula_catastral)
         else:
             print("No se encontró la Cédula Catastral en el PDF.")
         
         if ubicacion_predio:
-            print("\nUbicación del predio (CIRCULO REGISTRAL) encontrada:")
-            print(ubicacion_predio)
+            print("\nUbicación del predio encontrada:", ubicacion_predio)
         else:
             print("No se encontró la Ubicación del predio en el PDF.")
         
         if direccion_inmueble:
-            print("\nDirección del inmueble encontrada:")
-            print(direccion_inmueble)
+            print("\nDirección del inmueble encontrada:", direccion_inmueble)
         else:
             print("No se encontró la Dirección del inmueble en el PDF.")
         
-   
-        return{
+        return {
             "matricula": matricula,
             "cedula_catastral": cedula_catastral,
             "ubicacion_predio": ubicacion_predio,
             "direccion_inmueble": direccion_inmueble
-        }    
-    else:
-        print("No se seleccionó ningún archivo PDF.")
+        }
+
+    except Exception as e:
+        progress_window.destroy()  # Asegurar que la ventana de progreso se cierre en caso de error
+        raise Exception(f"Error al procesar el documento: {str(e)}")
 

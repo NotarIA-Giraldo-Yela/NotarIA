@@ -2,6 +2,10 @@ import pytesseract
 import cv2
 import numpy as np
 import re
+import tkinter as tk
+from tkinter import ttk
+import collections 
+from collections import Counter
 
 # Dimensiones estándar del documento
 IMAGE_WIDTH = 669
@@ -17,20 +21,15 @@ ZONES_BACK = {
     "Lugar de expedicion": (346, 190, 147, 35),
 }
 
+ITERACIONES = 20
+
 def resize_image(image: np.ndarray) -> np.ndarray:
     """ Redimensiona la imagen a 669x425 si no tiene ese tamaño. """
     h, w = image.shape[:2]
     if w != IMAGE_WIDTH or h != IMAGE_HEIGHT:
-        print(f"🔄 Redimensionando imagen de {w}x{h} a {IMAGE_WIDTH}x{IMAGE_HEIGHT}...")
         image = cv2.resize(image, (IMAGE_WIDTH, IMAGE_HEIGHT), interpolation=cv2.INTER_AREA)
     return image
 
-def show_image(title: str, image: np.ndarray):
-    """ Muestra una imagen recortada con un título específico y espera una tecla antes de cerrarla. """
-    cv2.imshow(title, image)
-    print(f"🖼️ Mostrando imagen: {title} (presiona cualquier tecla para continuar)")
-    cv2.waitKey(0)  # Espera indefinidamente hasta que el usuario presione una tecla
-    cv2.destroyAllWindows()
 
 def clean_text(text: str, only_numbers=False, only_letters=False) -> str:
     """ Filtra caracteres no deseados, permitiendo solo letras o números según el caso. """
@@ -70,8 +69,6 @@ def extract_front_zone(image: np.ndarray) -> dict:
     zone = image[y:y+h, x:x+w]
 
     text = pytesseract.image_to_string(zone, lang="spa", config="--psm 6").strip()
-    print(f"🔍 Texto detectado en la parte frontal:\n{text}\n")
-    
 
     return parse_front_text(text)
 
@@ -86,296 +83,42 @@ def parse_front_text(text: str) -> dict:
 
     # 🚫 Lista de palabras/frases que NO deben estar en Apellidos o Nombres
     palabras_invalidas = [
-    # Variaciones de "REPÚBLICA DE COLOMBIA"
-    "REPÚBLICA DE COLOMBIA",
-    "REPUBLICA DE COLOMBIA",
-    "REPUBLICA DE COLOMB1A",  # OCR puede confundir I con 1
-    "REPUBLIÇA DE COLOMBIA",  # OCR puede cambiar C por Ç
+    # Encabezados oficiales y términos generales
+    "REPÚBLICA DE COLOMBIA", "REPUBLICA DE COLOMBIA", "REPUBLICA DE COLOMB1A", "REPUBLIÇA DE COLOMBIA",
+    "IDENTIFICACION PERSONAL", "IDENTIFICACIÓN PERSONAL", "IDENTIFICAC10N PERSONAL", "IDENTIFICAC10N PERS0NAL",
+    "CÉDULA DE CIUDADANIA", "CÉDULA DE CIUDADANÍA", "CEDULA DE CIUDADANIA", "CEDULA DE CIUDADANÍA",
+    "C3DULA DE CIUDADANIA", "C3DULA DE CIUDADANÍA", "CÉDULA D3 CIUDADANIA", "CÉDULA DE CIUDADAN1A",
+    "CÉDULA DE CIUD4DANIA", "DOCUMENTO", "DE IDENTIDAD", "IDENTIDAD", "TARJETA", "DE IDENTIFICACIÓN",
 
-    # Variaciones de "IDENTIFICACIÓN PERSONAL"
-    "IDENTIFICACION PERSONAL",
-    "IDENTIFICACIÓN PERSONAL",
-    "IDENTIFICAC10N PERSONAL",  # OCR puede confundir I con 1
-    "IDENTIFICAC10N PERS0NAL",  # OCR puede confundir O con 0
+    # Números y términos relacionados
+    "NUMERO", "NÚMERO", "NUM3RO", "NÚM3RO", "NUMER0", "N0MERO", "NÚMERO.", "NÚMER0", "NRO", "N°",
 
-    # Variaciones de "CÉDULA DE CIUDADANÍA"
-    "CÉDULA DE CIUDADANIA",
-    "CÉDULA DE CIUDADANÍA",
-    "CEDULA DE CIUDADANIA",
-    "CEDULA DE CIUDADANÍA",
-    "C3DULA DE CIUDADANIA",  # OCR puede confundir E con 3
-    "C3DULA DE CIUDADANÍA",
-    "CÉDULA D3 CIUDADANIA",  # OCR puede confundir E con 3
-    "CÉDULA DE CIUDADAN1A",  # OCR puede confundir I con 1
-    "CÉDULA DE CIUD4DANIA",  # OCR puede confundir A con 4
+    # Palabras que aparecen en la parte superior de los documentos
+    "APELLIDOS", "APELIDOS", "APELLDIOS", "ARPELLIDOS", "APELLIDIOS", "ARELLIDOS", "APELILIDOS",
+    "NOMBRES", "N0MBRES", "NOMBR3S", "NOMBRES.", "NOMRES", "NOMB.", "NOMBRE", "NOMBRES Y APELLIDOS",
 
-    # Variaciones de "NÚMERO"
-    "NUMERO",
-    "NÚMERO",
-    "NÚM3RO",  # OCR puede confundir E con 3
-    "NUM3RO",
+    # Fechas y lugares
+    "FECHA", "EXPEDICIÓN", "EXPEDICION", "EXP3DICIÓN", "EXP3DICION", "LUGAR DE NACIMIENTO",
+    "LUGAR DE EXPEDICION", "LUGAR DE EXPEDICIÓN", "LUGAR NACIMIENTO", "EXPEDIDO EN", "EXPEDIDO",
 
-    # Variaciones de "NOMBRES"
-    "NOMBRES",
-    "N0MBRES",  # OCR puede confundir O con 0
-    "NOMBR3S",  # OCR puede confundir E con 3
-    "NOMBRES.",
-    "NOMRES",   # OCR puede omitir letras
-   
+    # Otros campos comunes en documentos de identidad
+    "ESTATURA", "SEXO", "MASCULINO", "FEMENINO", 
+    "ESTADO CIVIL", "ESTADOCIVIL", "LUGAR", "DE EXPEDICIÓN", "DE NACIMIENTO", "EXPE.", "LUGAR EXPE.",
 
-    # Otras palabras clave que pueden aparecer erróneamente
-    "FECHA",
-    "EXPEDICIÓN",
-    "EXPEDICION",
-    "EXP3DICIÓN",  # OCR puede confundir E con 3
-    "EXP3DICION",
-    "LUGAR DE NACIMIENTO",
-    "LUGAR DE EXPEDICION",
-    "LUGAR DE EXPEDICIÓN",
-    "ESTATURA",
-    "SEXO"
+    # Errores OCR comunes y variaciones
+    "APE.LIDOS", "AP.ELLIDOS", "APEL.LIDOS", "APELLI.DOS", "APELLID.OS", "A.PELLIDOS", "APEL.LID.OS",
+    "A.PE.LLIDOS", "APELL.IDOS", "APE.LLIDOS", "APEL.LIDOS.", "APELLI.DO.S", "APELL.ID.OS", "APELLI.D.OS",
+    "AP.EL.LIDOS", "A.PELL.IDOS", "AP.ELL.IDOS", "A.PE.LL.IDOS", "APELLID.O.S", "APELL.IDO.S", "APE.LLID.OS",
+    "APEL.LID.OS", "APEL.LI.DOS", "APELL.I.DOS", "APE.LI.DOS", "APEL.LI.D.O.S", "AP.ELL.IDO.S.", "A.PELL.IDO.S",
+    "A.PE.LL.I.DOS", "AP.ELLI.D.O.S", "APEL.LI.D.O.S", "A.PE.LLI.D.O.S", "AP.ELL.ID.O.S.", "A.PELL.ID.O.S",
+    "A.PE.L.LI.DOS", "APELLID.O.S", "APE.LI.D.OS", "APELLI.D.O.S.", "A.PELL.I.DOS", "AP.ELLI.DOS",
 
-    "APELLIDOS",
-    "AFELLIDOS",  
-    "ARPELLIDOS",  
-    "APELIDOS",  
-    "APELLDIOS",  
-    "APELLIDOS",  
-    "APELLIDOS",  
-    "APELLIDAS",  
-    "APELLIDIOS",  
-    "ARELLIDOS",  
-    "APELILIDOS",  
-    "APELLID0S",  
-    "APELLlDOS",  
-    "APELLIDIS",  
-    "APELLIODS",  
-    "AEPPELLIDOS",  
-    "APELLIDDOS",  
-    "APELL1DOS",  
-    "APELLIDDO",  
-    "APELIDDO",  
-    "APELIDIO",  
-    "APELLIDOSO",  
-    "APELLIDIOS",  
-    "APPILLIDOS",  
-    "APPELLIDOS",  
-    "APELLIDOS",  
-    "APELLIDO",  
-    "APPELLIIDDOS",  
-    "APELLIIDOSS",  
-    "APELLILDOS",  
-    "APELIILDOS",  
-    "APPELLIIDOS",  
-    "APPELLIIDO",  
-    "APELLIDOSSS",  
-    "APELLIDOSS",  
-    "APELLIDDOS",  
-    "APELLIDOSO",  
-    "APELLIDOSS",  
-    "APELLIDAS",  
-    "APELLIDOSS",  
-    "APELLIDDS",  
-    "APELIIDS",  
-    "APPELLIDAS",  
-    "APELLIDASO",  
-    "APELLIDIO",  
-    "APELLIDOSSA",  
-    "APELLIDSSA",  
-    "APELLISDOS",  
-    "APELLIDOSD",  
-    "APELLIDOSS",  
-    "APELLDIOS",  
-    "APELLIDOS",  
-    "APPELLIDOS",  
-    "APPILLIDOS",  
-    "APPELLIIDDOS",  
-    "APELLIIDOSS",  
-    "APELLILDOS",  
-    "APELIILDOS",  
-    "APPELLIIDOS",  
-    "APPELLIIDO",  
-    "APELLIDOSSS",  
-    "APELLIDOSS",  
-    "APELLIDDOS",  
-    "APELLIDOSO",  
-    "APELLIDOSS",  
-    "APELLIDAS",  
-    "APELLIDOSS",  
-    "APELLIDDS",  
-    "APELIIDS",  
-    "APPELLIDAS",  
-    "APELLIDASO",  
-    "APELLIDIO",  
-    "APELLIDOSSA",  
-    "APELLIDSSA",  
-    "APELLISDOS",  
-    "APELLIDOSD",  
-    "APELLIDOSS",  
-    "APELLDIOS",  
-    "APELLIDOSD",  
-    "APELLISDOS",  
-    "APELLIDSSA",  
-    "APELLIDOSS",  
-    "APELLIDOSSA",  
-    "APELLIDIO",  
-    "APELLIDASO",  
-    "APPELLIDAS",  
-    "APELIIDS",  
-    "APELLIDDS",  
-    "APELLIDOSS",  
-    "APELLIDOSO",  
-    "APELLIDDOS",  
-    "APELLIDOSS",  
-    "APELLIDOSSS",  
-    "APPELLIIDO",  
-    "APPELLIIDOS",  
-    "APELIILDOS",  
-    "APELLILDOS",  
-    "APELLIIDOSS",  
-    "APPELLIIDDOS",  
-    "APPILLIDOS",  
-    "APPELLIDOS",  
-    "APELLIDOS",  
-    "APELLDIOS",  
-    "APELLIDOSS",  
-    "APELLIDOSD",  
-    "APELLISDOS",  
-    "APELLIDSSA",  
-    "APELLIDOSSA",  
-    "APELLIDIO",  
-    "APELLIDASO",  
-    "APPELLIDAS",  
-    "APELIIDS",  
-    "APELLIDDS",  
-    "APELLIDOSS",  
-    "APELLIDOSO",  
-    "APELLIDDOS",  
-    "APELLIDOSS",  
-    "APELLIDOSSS",  
-    "APPELLIIDO",  
-    "APPELLIIDOS",  
-    "APELIILDOS",  
-    "APELLILDOS",  
-    "APELLIIDOSS",  
-    "APPELLIIDDOS",  
-    "APPILLIDOS",  
-    "APPELLIDOS",  
-    "APELLIDOS",  
-    "APELLIDO",  
-    "APELLIDDO",  
-    "APELIDDO",  
-    "APELIDIO",  
-    "APELLIDOSO",  
-    "APELLIDIOS",  
-    "APPILLIDOS",  
-    "APPELLIDOS",  
-    "APELLIDOS",  
-    "APELLIDO",  
-    "APELUIDOS",  
-    "APELLIIDOSS",  
-    "APELLILDOS",  
-    "APELIILDOS",  
-    "APPELLIIDOS",  
-    "APPELLIIDO",  
-    "APELLIDOSSS",  
-    "APELLIDOSS",  
-    "APELLIDDOS",  
-    "APELLIDOSO",  
-    "APELLIDOSS",  
-    "APELLIDAS",  
-    "APELLIDOSS",  
-    "APELLIDDS",  
-    "APELIIDS",  
-    "APPELLIDAS",  
-    "APELLIDASO",  
-    "APELLIDIO",  
-    "APELLIDOSSA",  
-    "APELLIDSSA",  
-    "APELLISDOS",  
-    "APELLIDOSD",  
-    "APELLIDOSS",  
-    "APELLDIOS",  
-    "APELLIDOS",  
-    "APPELLIDOS",  
-    "APPILLIDOS",  
-    "APPELLIIDDOS",  
-    "APELLIIDOSS",  
-    "APELLILDOS",  
-    "APELIILDOS",  
-    "APPELLIIDOS",  
-    "APPELLIIDO",  
-    "APELLIDOSSS",  
-    "APELLIDOSS",  
-    "APELLIDDOS",  
-    "APELLIDOSO",  
-    "APELLIDOSS",  
-    "APELLIDAS",  
-    "APELLIDOSS",  
-    "APELLIDDS",  
-    "APELIIDS",  
-    "APPELLIDAS",  
-    "APELLIDASO",  
-    "APELLIDIO",  
-    "APELLIDOSSA",  
-    "APELLIDSSA",  
-    "APELLISDOS",  
-    "APELLIDOSD",  
-    "APELLIDOSS",  
-    "APELLDIOS",
-    "APE.LIDOS",
-    "AP.ELLIDOS",
-    "APEL.LIDOS",
-    "APELLI.DOS",
-    "APELLID.OS",
-    "A.PELLIDOS",
-    "APEL.LID.OS",
-    "A.PE.LLIDOS",
-    "APELL.IDOS",
-    "APE.LLIDOS",
-    "APEL.LIDOS.",
-    "APELLI.DO.S",
-    "APELL.ID.OS",
-    "APELLI.D.OS",
-    "AP.EL.LIDOS",
-    "A.PELL.IDOS",
-    "AP.ELL.IDOS",
-    "A.PE.LL.IDOS",
-    "APELLID.O.S",
-    "APELL.IDO.S",
-    "APE.LLID.OS",
-    "APEL.LID.OS",
-    "APEL.LI.DOS",
-    "APELL.I.DOS",
-    "APE.LI.DOS",
-    "APEL.LI.D.O.S",
-    "AP.ELL.IDO.S",
-    "A.PELL.ID.OS",
-    "AP.ELLI.DOS",
-    "APE.LI.D.O.S",
-    "APEL.LI.D.O.S",
-    "A.PELLID.OS",
-    "A.PELL.ID.O.S",
-    "APELLID.O.S.",
-    "APEL.LI.D.O.S.",
-    "APELLI.D.O.S",
-    "A.PE.LLI.DOS",
-    "AP.ELL.ID.O.S",
-    "AP.EL.LI.DOS",
-    "APELLID.O.S",
-    "APE.LI.D.OS",
-    "APELLI.D.O.S.",
-    "A.PELL.I.DOS",
-    "A.PE.L.LI.DOS",
-    "AP.ELL.IDO.S.",
-    "A.PELL.IDO.S",
-    "A.PE.LL.I.DOS",
-    "AP.ELLI.D.O.S",
-    "APEL.LI.D.O.S",
-    "A.PE.LLI.D.O.S"
-
-
+    # Variaciones y errores en nombres
+    "APELLIDOS:", "APELIDOS:", "NOMBRES:", "NOMBR3S:", "APELLIDOS Y NOMBRES:", "NOMBRES Y APELLIDOS:",
+    "NOMBRES/APELLIDOS:", "NOMBRE Y APELLIDO:", "APELLIDOS Y NOMBRE:", "NOMBR3S/APELLIDOS:", "NOMB. APELL.",
+    "NOMB. Y APELL.", "NOMBRES APELLIDOS:", "APELLIDOS NOMBRES:", "APELLIDOS/NOMBRES:", "NOMBRES/APELLIDOS:"
 ]
+
     
 
     for line in lines:
@@ -426,8 +169,7 @@ def extract_zones(image: np.ndarray, zones: dict) -> dict:
         if key in ["Sexo", "Lugar de expedicion"]:
             text_lines = text.split("\n")
             text = text_lines[0] if text_lines else "No detectado"
-
-        print(f"🔍 Texto detectado en {key}: {text}")  # Depuración
+        
         extracted_data[key] = text
 
     return validate_fields(extracted_data)
@@ -441,35 +183,58 @@ def validate_fields(data: dict) -> dict:
     if "Sexo" in data:
         detected_sex = data["Sexo"].upper().strip()
         if detected_sex not in valid_sex_values:
-            print(f"⚠️ Valor de 'Sexo' incorrecto detectado: {detected_sex}. Se eliminará.")
             data["Sexo"] = "No detectado"
 
     # Validar el campo "Lugar de expedición" (solo letras)
     if "Lugar de expedicion" in data:
         data["Lugar de expedicion"] = clean_text(data["Lugar de expedicion"], only_letters=True)
         if not data["Lugar de expedicion"]:
-            print("⚠️ 'Lugar de expedición' detectado como vacío o incorrecto. Se eliminará.")
             data["Lugar de expedicion"] = "No detectado"
 
     return data
+    
+def show_progress():
+    """ Muestra una ventana emergente con una barra de carga. """
+    root = tk.Tk()
+    root.title("Procesando documento")
+    ttk.Label(root, text="Procesando documento, por favor espere...").pack(pady=10)
+    progress = ttk.Progressbar(root, orient="horizontal", length=300, mode="determinate")
+    progress.pack(pady=10)
+    return root, progress
+
 
 def process_document(front_image_path: str, back_image_path: str) -> dict:
     """ Procesa ambas partes del documento y extrae la información. """
-
     try:
-        # 🔄 Asegurar que las imágenes se carguen correctamente con OpenCV
         front_image = cv2.imread(front_image_path)
         back_image = cv2.imread(back_image_path)
 
         if front_image is None or back_image is None:
             raise Exception("No se pudo cargar una de las imágenes. Verifica que las rutas sean correctas.")
 
-        front_data = extract_front_zone(front_image)
-        back_data = extract_zones(back_image, ZONES_BACK)
+        front_data_temp = {}
+        back_data_temp = {}
+
+        root, progress = show_progress()
+        root.update()
+
+        for i in range(ITERACIONES):
+            progress["value"] = (i + 1) * (100 / ITERACIONES)
+            root.update()
+            front_data_temp[i] = extract_front_zone(front_image)
+            back_data_temp[i] = extract_zones(back_image, ZONES_BACK)
+
+        # Convertir a un formato hashable antes de usar Counter
+        front_counts = Counter(frozenset(d.items()) for d in front_data_temp.values())
+        back_counts = Counter(frozenset(d.items()) for d in back_data_temp.values())
+
+        # Obtener los valores más repetidos
+        front_data = dict(front_counts.most_common(1)[0][0])  # Convertir de nuevo a diccionario
+        back_data = dict(back_counts.most_common(1)[0][0])  # Convertir de nuevo a diccionario
+        
+        root.destroy()
 
         return {"Parte Frontal": front_data, "Parte Trasera": back_data}
 
     except Exception as e:
         raise Exception(f"Error al procesar el documento: {str(e)}")
-    
-    

@@ -219,8 +219,8 @@ class SaleDataApp:
     
     def show_results(self):
     # Convertir el valor de la venta a letras
-        valor_venta_letras = num2words(self.data["valorVenta"], lang='es').upper()
-        result_str = f"Valor de la Venta: {self.data['valorVenta']}\n ({valor_venta_letras})\n"
+        self.data["valorVenta_letras"] = num2words(self.data["valorVenta"], lang='es').upper()
+        result_str = f"Valor de la Venta: {self.data['valorVenta']}\n ({self.data["valorVenta_letras"]})\n"
         result_str += "-" * 40 + "\n"
         if "vendedor" in self.data:
             result_str += "Datos del VENDEDOR:\n"
