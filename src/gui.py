@@ -1,4 +1,6 @@
 import tkinter as tk
+from tkinter import Label, Button
+from tkinter import ttk
 from tkinter import Label, Button, filedialog
 import cv2
 from PIL import Image, ImageTk
@@ -12,43 +14,80 @@ from image_processor import preprocess_image
 from ocr.layoutlmv3_processor import process_document
 from templates_handler.template_filler import update_docx_template
 from templates_handler.form_filler import SaleDataApp
-
+from PIL import Image, ImageTk  # Para cargar y mostrar el logo
 
 class NotarIAApp:
     def __init__(self, root):
         self.root = root
         self.root.title("NotarIA - Lector de Documentos")
         self.root.geometry("900x750")
+        self.root.configure(bg="#254c9b")
 
-        # Variables para almacenar datos
-        self.datos_comprador = None
-        self.datos_vendedor = None
-        self.datos_folio = None
-        self.datos_manual = {}
+        # Estilos para los botones
+        style = ttk.Style()
+        style.configure("Custom.TButton",
+                        font=("Arial", 14, "bold"),
+                        padding=10,
+                        relief="flat",
+                        background="#254c9b",
+                        foreground="#254c9b",
+                        borderwidth=0)
 
-        # Botón para escanear documento del comprador
-        self.btn_escanear_comprador = Button(root, text="📑 Escanear Documento Comprador", command=self.buyer_info, width=25)
-        self.btn_escanear_comprador.pack(pady=5)
+        style.map("Custom.TButton", 
+                  background=[("active", "#e6791f"), ("!active", "#e6791f")],
+                  foreground=[("active", "#000000"), ("!active", "#000000")])
 
-        # Botón para escanear documento del vendedor
-        self.btn_escanear_vendedor = Button(root, text="📑 Escanear Documento Vendedor", command=self.seller_info, width=25)
-        self.btn_escanear_vendedor.pack(pady=5)
 
-        # Botón para abrir el formulario de ingreso manual
-        self.btn_ingreso_manual = Button(root, text="✍️ Ingreso Manual de Datos", command=self.manual_form, width=25)
-        self.btn_ingreso_manual.pack(pady=5)
+        # Cargar y mostrar el logo
+        logo_path = os.path.join(os.path.dirname(__file__), "data/Logo.png")
+        if os.path.exists(logo_path):
+            try:
+                self.logo_image = Image.open(logo_path)
+                self.logo_image = self.logo_image.resize((500, 265), Image.LANCZOS)  # Ajusta el tamaño según sea necesario
+                self.logo_photo = ImageTk.PhotoImage(self.logo_image)
+                self.logo_label = Label(root, image=self.logo_photo, bg="#254c9b")
+                self.logo_label.pack(pady=(5))
+            except Exception as e:
+                print(f"Error al cargar la imagen del logo: {e}")
+        else:
+            print(f"⚠️ Advertencia: La imagen del logo no se encontró en la ruta: {logo_path}")
+        
+        # Contenedor principal centrado
+        frame = tk.Frame(root, bg="#254c9b")
+        frame.pack(pady=5)
 
-        # Botón para escanear Folio
-        self.btn_cargar_folio = Button(root, text="📑 Escanear Folio ", command=self.folio_info, width=25)
-        self.btn_cargar_folio.pack(pady=5)
 
-        # Botón para generar la escritura
-        self.btn_generar_escritura = Button(root, text="⚙️ Generar Escritura ", command=self.create_writing, width=25)
-        self.btn_generar_escritura.pack(pady=5)
+        # Botones con estilos mejorados
+        self.btn_escanear_comprador = ttk.Button(frame, text="📑 Escanear Documento Comprador", 
+                                                 command=self.buyer_info, 
+                                                 style="Custom.TButton")
+        self.btn_escanear_comprador.pack(pady=10, ipadx=20, ipady=5)
 
-        # Etiqueta para mostrar resultados
-        self.resultado_label = Label(root, text="🔍 Resultados aparecerán aquí", fg="blue", font=("Arial", 12), justify="left")
-        self.resultado_label.pack(pady=10)
+        self.btn_escanear_vendedor = ttk.Button(frame, text="📑 Escanear Documento Vendedor", 
+                                                command=self.seller_info, 
+                                                style="Custom.TButton")
+        self.btn_escanear_vendedor.pack(pady=10, ipadx=20, ipady=5)
+
+        self.btn_ingreso_manual = ttk.Button(frame, text="✍️ Ingreso Manual de Datos", 
+                                             command=self.manual_form, 
+                                             style="Custom.TButton")
+        self.btn_ingreso_manual.pack(pady=10, ipadx=20, ipady=5)
+
+        self.btn_cargar_folio = ttk.Button(frame, text="📑 Escanear Folio", 
+                                           command=self.folio_info, 
+                                           style="Custom.TButton")
+        self.btn_cargar_folio.pack(pady=10, ipadx=20, ipady=5)
+
+        self.btn_generar_escritura = ttk.Button(frame, text="⚙️ Generar Escritura", 
+                                                command=self.create_writing, 
+                                                style="Custom.TButton")
+        self.btn_generar_escritura.pack(pady=10, ipadx=20, ipady=5)
+        
+        # Etiqueta de resultados
+        self.resultado_label = Label(root, text="🔍 Resultados aparecerán aquí", fg="orange", 
+                                     font=("Arial", 20), bg="#254c9b")
+        self.resultado_label.pack(pady=5)
+ 
 
     def buyer_info(self):
         """ Escanea ambas caras del documento del comprador, guarda y muestra la información. """
@@ -67,7 +106,7 @@ class NotarIAApp:
             self.datos_comprador = process_document(output_front, output_back)
 
             # Mostrar en pantalla
-            self.mostrar_resultados("📌 **Datos del Comprador:**", self.datos_comprador)
+            self.mostrar_resultados("📌 Datos del Comprador:", self.datos_comprador)
 
         except Exception as e:
             self.resultado_label.config(text=f"⚠️ Error al escanear el comprador: {str(e)}", fg="red")
@@ -89,7 +128,7 @@ class NotarIAApp:
             self.datos_vendedor = process_document(output_front, output_back)
 
             # Mostrar en pantalla
-            self.mostrar_resultados("📌 **Datos del Vendedor:**", self.datos_vendedor)
+            self.mostrar_resultados("📌 Datos del Vendedor:", self.datos_vendedor)
 
         except Exception as e:
             self.resultado_label.config(text=f"⚠️ Error al escanear el vendedor: {str(e)}", fg="red")
@@ -119,7 +158,7 @@ class NotarIAApp:
             - Ubicación: {self.datos_folio.get('ubicacion_predio', 'No detectado')}
             - Dirección: {self.datos_folio.get('direccion_inmueble', 'No detectado')}
             """
-            self.resultado_label.config(text=folio_texto, fg="blue")
+            self.resultado_label.config(text=folio_texto, fg="white")
 
         except Exception as e:
             self.resultado_label.config(text=f"⚠️ Error al escanear folio: {str(e)}", fg="red")
@@ -234,12 +273,10 @@ class NotarIAApp:
         resultado_texto = f"{titulo}\n"
         resultado_texto += f"  - Número de Documento: {datos['Parte Frontal'].get('Número de Documento', 'No detectado')}\n"
         resultado_texto += f"  - Apellidos: {datos['Parte Frontal'].get('Apellidos', 'No detectado')}\n"
-        resultado_texto += f"  - Nombres: {datos['Parte Frontal'].get('Nombres', 'No detectado')}\n\n"
-        resultado_texto += f"📝 **Parte Trasera:**\n"
-        resultado_texto += f"  - Fecha de nacimiento: {datos['Parte Trasera'].get('Fecha de nacimiento', 'No detectado')}\n"
+        resultado_texto += f"  - Nombres: {datos['Parte Frontal'].get('Nombres', 'No detectado')}\n"
         resultado_texto += f"  - Lugar de expedición: {datos['Parte Trasera'].get('Lugar de expedicion', 'No detectado')}\n"
 
-        self.resultado_label.config(text=resultado_texto, fg="blue")
+        self.resultado_label.config(text=resultado_texto, fg="white")
 
         
 

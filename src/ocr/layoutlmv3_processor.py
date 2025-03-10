@@ -111,7 +111,7 @@ def parse_front_text(text: str) -> dict:
     "AP.EL.LIDOS", "A.PELL.IDOS", "AP.ELL.IDOS", "A.PE.LL.IDOS", "APELLID.O.S", "APELL.IDO.S", "APE.LLID.OS",
     "APEL.LID.OS", "APEL.LI.DOS", "APELL.I.DOS", "APE.LI.DOS", "APEL.LI.D.O.S", "AP.ELL.IDO.S.", "A.PELL.IDO.S",
     "A.PE.LL.I.DOS", "AP.ELLI.D.O.S", "APEL.LI.D.O.S", "A.PE.LLI.D.O.S", "AP.ELL.ID.O.S.", "A.PELL.ID.O.S",
-    "A.PE.L.LI.DOS", "APELLID.O.S", "APE.LI.D.OS", "APELLI.D.O.S.", "A.PELL.I.DOS", "AP.ELLI.DOS",
+    "A.PE.L.LI.DOS", "APELLID.O.S", "APE.LI.D.OS", "APELLI.D.O.S.", "A.PELL.I.DOS", "AP.ELLI.DOS", "APELLUDOS", "APEL IDOS", "APELL DOS",
 
     # Variaciones y errores en nombres
     "APELLIDOS:", "APELIDOS:", "NOMBRES:", "NOMBR3S:", "APELLIDOS Y NOMBRES:", "NOMBRES Y APELLIDOS:",
