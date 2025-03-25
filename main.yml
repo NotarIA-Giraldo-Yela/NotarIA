@@ -1,0 +1,17 @@
+name: Usar Secret de OpenAI
+on: [push]  # Se ejecuta al hacer push
+
+jobs:
+  usar_secret:
+    runs-on: ubuntu-latest  # Sistema operativo
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4  # Descarga el repositorio
+
+      - name: Mostrar Secret (sin exponerlo)
+        env:
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}  # Accede al secret
+        run: |
+          echo "La clave está configurada correctamente"
+          # Usar la clave en un script (sin imprimirla)
+          python mi_script.py --key="$OPENAI_KEY"

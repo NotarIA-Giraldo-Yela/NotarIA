@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import Label, Button
+from tkinter import Label, Button, Toplevel, Entry
 from tkinter import ttk
 from tkinter import Label, Button, filedialog
 import cv2
@@ -11,7 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from scanner.scanner import scan_document
 from scanner.scanner_doc import scan_doc
 from image_processor import preprocess_image
-from ocr.layoutlmv3_processor import process_document
+from ocr.doc_processor import process_document
 from templates_handler.template_filler import update_docx_template
 from templates_handler.form_filler import SaleDataApp
 from PIL import Image, ImageTk  # Para cargar y mostrar el logo
@@ -22,6 +22,33 @@ class NotarIAApp:
         self.root.title("NotarIA - Lector de Documentos")
         self.root.geometry("900x750")
         self.root.configure(bg="#254c9b")
+
+        self.mostrando_datos = None
+
+        # Inicializar los datos del comprador y vendedor
+        self.datos_comprador = {
+            "Parte Frontal": {
+                "Número de Documento": "No detectado",
+                "Apellidos": "No detectado",
+                "Nombres": "No detectado"
+            },
+            "Parte Trasera": {
+                "Lugar de Expedicion": "No detectado",
+                "Fecha de Expedicion": "No detectado"
+            }
+        }
+
+        self.datos_vendedor = {
+            "Parte Frontal": {
+                "Número de Documento": "No detectado",
+                "Apellidos": "No detectado",
+                "Nombres": "No detectado"
+            },
+            "Parte Trasera": {
+                "Lugar de Expedicion": "No detectado",
+                "Fecha de Expedicion": "No detectado"
+            }
+        }
 
         # Estilos para los botones
         style = ttk.Style()
@@ -82,12 +109,17 @@ class NotarIAApp:
                                                 command=self.create_writing, 
                                                 style="Custom.TButton")
         self.btn_generar_escritura.pack(pady=10, ipadx=20, ipady=5)
-        
+
         # Etiqueta de resultados
         self.resultado_label = Label(root, text="🔍 Resultados aparecerán aquí", fg="orange", 
-                                     font=("Arial", 20), bg="#254c9b")
+                                    font=("Arial", 20), bg="#254c9b")
         self.resultado_label.pack(pady=5)
- 
+
+        # Botón "Corregir Datos"
+        self.btn_correccion = ttk.Button(root, text="✏️ Corregir Datos", command=self.open_edit, style="Custom.TButton")
+        self.btn_correccion.pack(pady=10)
+        self.btn_correccion.pack_forget()  # Inicialmente oculto
+    
 
     def buyer_info(self):
         """ Escanea ambas caras del documento del comprador, guarda y muestra la información. """
@@ -97,16 +129,10 @@ class NotarIAApp:
 
             scan_document(output_front, output_back)
 
-            processed_front = preprocess_image(cv2.imread(output_front))
-            processed_back = preprocess_image(cv2.imread(output_back))
-
-            cv2.imwrite(output_front, processed_front)
-            cv2.imwrite(output_back, processed_back)
-
             self.datos_comprador = process_document(output_front, output_back)
 
             # Mostrar en pantalla
-            self.mostrar_resultados("📌 Datos del Comprador:", self.datos_comprador)
+            self.mostrar_resultados("📌 Datos del Comprador:", self.datos_comprador, "comprador")
 
         except Exception as e:
             self.resultado_label.config(text=f"⚠️ Error al escanear el comprador: {str(e)}", fg="red")
@@ -118,17 +144,11 @@ class NotarIAApp:
             output_back = "scanned_back_vendedor.png"
 
             scan_document(output_front, output_back)
-
-            processed_front = preprocess_image(cv2.imread(output_front))
-            processed_back = preprocess_image(cv2.imread(output_back))
-
-            cv2.imwrite(output_front, processed_front)
-            cv2.imwrite(output_back, processed_back)
-
+      
             self.datos_vendedor = process_document(output_front, output_back)
 
             # Mostrar en pantalla
-            self.mostrar_resultados("📌 Datos del Vendedor:", self.datos_vendedor)
+            self.mostrar_resultados("📌 Datos del Vendedor:", self.datos_vendedor, "vendedor")
 
         except Exception as e:
             self.resultado_label.config(text=f"⚠️ Error al escanear el vendedor: {str(e)}", fg="red")
@@ -268,15 +288,102 @@ class NotarIAApp:
         self.resultado_label.config(text="✅ Escritura generada correctamente. Guardada como 'escritura.txt'", fg="green")
 
 
-    def mostrar_resultados(self, titulo, datos):
+    def mostrar_resultados(self, titulo, datos, tipo):
         """ Formatea y muestra los datos en la interfaz. """
+        
+        self.mostrando_datos = tipo
         resultado_texto = f"{titulo}\n"
         resultado_texto += f"  - Número de Documento: {datos['Parte Frontal'].get('Número de Documento', 'No detectado')}\n"
         resultado_texto += f"  - Apellidos: {datos['Parte Frontal'].get('Apellidos', 'No detectado')}\n"
         resultado_texto += f"  - Nombres: {datos['Parte Frontal'].get('Nombres', 'No detectado')}\n"
-        resultado_texto += f"  - Lugar de expedición: {datos['Parte Trasera'].get('Lugar de expedicion', 'No detectado')}\n"
+        resultado_texto += f"  - Lugar de expedición: {datos['Parte Trasera'].get('Lugar de Expedicion', 'No detectado')}\n"
+        resultado_texto += f"  - Fecha de Expedición: {datos['Parte Trasera'].get('Fecha de Expedicion', 'No detectado')}\n"
 
-        self.resultado_label.config(text=resultado_texto, fg="white")
+        # Actualizar el texto en la etiqueta de resultados
+        self.resultado_label.config(text=resultado_texto, fg="white", bg="#254c9b", font=("Arial", 14, "bold"))
+
+        # Mostrar el botón "Corregir Datos" debajo de los resultados
+        self.btn_correccion.pack(pady=10)
+
+    def open_edit(self):
+        """ Abre una ventana para editar los datos mostrados """
+        if not self.mostrando_datos:
+            return  # Si no hay datos mostrados, no abrir la ventana
+
+        # Crear la ventana de edición y guardar la referencia
+        self.edicion_root = Toplevel(self.root)
+        self.edicion_root.title("Editar Datos")
+        self.edicion_root.geometry("400x400")  # Ajustar el tamaño para incluir todos los campos
+
+        # Título de la ventana
+        Label(self.edicion_root, text=f"Editar Datos del {self.mostrando_datos.capitalize()}").pack(pady=10)
+
+        # Obtener los datos actuales (comprador o vendedor)
+        if self.mostrando_datos == "comprador":
+            datos_actuales = self.datos_comprador
+        else:
+            datos_actuales = self.datos_vendedor
+
+        # Diccionario para almacenar las referencias a los campos de texto (Entry)
+        self.entries_edicion = {}
+
+        # Campos a editar y su ubicación en la estructura de datos
+        campos = [
+            ("Número de Documento", "Parte Frontal"),
+            ("Apellidos", "Parte Frontal"),
+            ("Nombres", "Parte Frontal"),
+            ("Lugar de Expedicion", "Parte Trasera"),
+            ("Fecha de Expedicion", "Parte Trasera")  # Añadimos el campo "Fecha de Expedicion"
+        ]
+
+        # Crear y prellenar los campos de texto
+        for key, seccion in campos:
+            # Etiqueta del campo
+            Label(self.edicion_root, text=key).pack(pady=5)
+
+            # Campo de texto (Entry)
+            entry = Entry(self.edicion_root, width=30)
+            
+            # Prellenar el campo con el valor actual si existe
+            if key in datos_actuales[seccion]:
+                entry.insert(0, datos_actuales[seccion][key])
+            else:
+                entry.insert(0, "No detectado")  # Si no hay datos, mostrar "No detectado"
+            
+            entry.pack(pady=5)
+            self.entries_edicion[key] = entry  # Guardar referencia al campo
+
+        # Botón para guardar los cambios
+        Button(self.edicion_root, text="Guardar Cambios", command=self.save_edit).pack(pady=20)
+
+    def save_edit(self):
+        """ Guarda los cambios realizados en la ventana de edición """
+        if self.mostrando_datos == "comprador":
+            datos_actuales = self.datos_comprador
+        else:
+            datos_actuales = self.datos_vendedor
+
+        for key, entry in self.entries_edicion.items():
+            # Determinar en qué parte del diccionario se debe guardar el valor
+            if key in ["Número de Documento", "Apellidos", "Nombres"]:
+                datos_actuales["Parte Frontal"][key] = entry.get()
+            elif key in ["Lugar de Expedicion", "Fecha de Expedicion"]:
+                datos_actuales["Parte Trasera"][key] = entry.get()
+        
+        if self.mostrando_datos == "comprador":
+            self.datos_comprador = datos_actuales
+        else:
+            self.datos_vendedor = datos_actuales
+
+        # Cerrar la ventana de edición
+        self.edicion_root.destroy()
+
+        # Mostrar los resultados actualizados
+        if self.mostrando_datos == "comprador":
+            self.mostrar_resultados("📌 Datos del Comprador:", self.datos_comprador, "comprador")
+        else:
+            self.mostrar_resultados("📌 Datos del Vendedor:", self.datos_vendedor, "vendedor")
+        
 
         
 
